@@ -330,12 +330,7 @@ local function calculateRealisticTemperature()
     lastUpdateTime = currentTime
     
     -- Get base temperature
-    local baseTemperature
-    if Config.weatherResource == 'renewed-weathersync' and Config.useWeatherResourceTemp then
-        baseTemperature = exports['renewed-weathersync']:GetTemperature()
-    else
-        baseTemperature = getSeasonalBaseTemperature()
-    end
+    local baseTemperature = getSeasonalBaseTemperature()
     
     -- Apply modifiers
     local weatherModifier = getWeatherModifier(gameWeather)
@@ -509,13 +504,7 @@ end
 
 -- Get perceived temperature including wind chill and heat index - optimized
 function getPerceivedTemperature()
-    local actualTemperature
-    if Config.weatherResource == 'renewed-weathersync' and Config.useWeatherResourceTemp then
-        actualTemperature = exports['renewed-weathersync']:GetTemperature()
-    else
-        actualTemperature = calculateRealisticTemperature()
-    end
-    
+    local actualTemperature = calculateRealisticTemperature()
     -- Apply wind chill for cold temperatures
     local windChillFactor = 0
     if actualTemperature <= 10 then
