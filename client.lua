@@ -401,9 +401,14 @@ end
 
 -- Vehicle HVAC and greenhouse effect
 local VEH = { acOn=false, setpoint=22.0, greenhouse=0.05 }
+
 RegisterCommand("ac", function()
     VEH.acOn = not VEH.acOn
-    lib.notify({ title='Vehicle A/C', description = VEH.acOn and 'A/C ON' or 'A/C OFF', type = 'inform' })
+    if lib and lib.notify then
+        lib.notify({ title = 'Vehicle A/C', description = VEH.acOn and 'A/C ON' or 'A/C OFF', type = 'inform' })
+    else
+        notify('Vehicle A/C', VEH.acOn and 'A/C ON' or 'A/C OFF')
+    end
 end)
 
 local function vehicleAdjustedTemp(outdoorFeelsC)
@@ -1009,6 +1014,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
