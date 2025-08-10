@@ -18,6 +18,11 @@ local sunsetTime = 18 -- 6:00 PM
 local Zones = {}
 local Framework = Config.Framework or 'standalone'
 
+-- Basic notification helper using the chat resource
+local function notify(title, message)
+    TriggerEvent('chat:addMessage', { args = { title or 'Info', message or '' } })
+end
+
 -- Cache common functions for performance
 local mathFloor = math.floor
 local mathMin = math.min
@@ -535,31 +540,49 @@ function createHeatZone(coords, id)
     if not Config.useHeatzone then return end
     -- Validate parameters
     if not coords or not id then return end
-    
+
     local zoneName = tostring(id)
     if Zones[zoneName] then return end
-    
-    local heatzone = lib.zones.sphere({
+
+    Zones[zoneName] = {
+        id = id,
         coords = coords,
         radius = Config.HeatZone.radius or 2.0,
-        debug = Config.Debug or false,
-        onEnter = function()
-            lib.notify({ title = 'Heat Source', description = 'You feel the warmth from the heat source.', type = 'success' })
-        end,
-        onExit = function()
-            lib.notify({ title = 'Heat Source', description = 'You left the warmth of the heat source.', type = 'inform' })
-        end
-    })
-    Zones[zoneName] = { id = id, zone = heatzone }
+        inside = false
+    }
 end
 
 function deleteHeatZone(zoneName)
     if not Config.useHeatzone then return end
     if Zones[zoneName] then
-        Zones[zoneName].zone:remove()
         Zones[zoneName] = nil
     end
 end
+
+-- Monitor player proximity to heat zones
+Citizen.CreateThread(function()
+    while true do
+        if Config.useHeatzone then
+            local playerPed = PlayerPedId()
+            local playerCoords = GetEntityCoords(playerPed)
+
+            for _, data in pairs(Zones) do
+                local distance = #(playerCoords - data.coords)
+                if distance <= data.radius then
+                    if not data.inside then
+                        data.inside = true
+                        notify('Heat Source', 'You feel the warmth from the heat source.')
+                    end
+                elseif data.inside then
+                    data.inside = false
+                    notify('Heat Source', 'You left the warmth of the heat source.')
+                end
+            end
+        end
+
+        Wait(500)
+    end
+end)
 
 -- Optimize detection of nearby water bodies
 Citizen.CreateThread(function()
@@ -680,13 +703,8 @@ exports("getTemperatureData", getTemperatureData)
 -- Register command to check temperature
 RegisterCommand('checktemp', function()
     local data = getTemperatureData()
-    lib.notify({
-        title = 'Temperature',
-        description = string.format('Current: %.1f°C | Feels like: %.1f°C', 
-            data.temperature, data.feelsLike),
-        type = 'inform',
-        duration = 5000
-    })
+    notify('Temperature', string.format('Current: %.1f°C | Feels like: %.1f°C',
+        data.temperature, data.feelsLike))
 end, false)
 
 -- Event handler for temperature updates from server
@@ -698,6 +716,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
