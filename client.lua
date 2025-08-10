@@ -144,48 +144,30 @@ local function getWindChillFactor()
     return 0 -- No wind chill effect
 end
 
--- Get heat index (feels like temperature when hot and humid) - optimized
+Get heat index (Rothfusz) - returns EXTRA °C above actual (0 if not applicable)
 local function getHeatIndex()
-    -- Only apply heat index if temperature is above 27°C
-    if currentTemperature > 27 then
-        -- Heat index formula
-        local T = currentTemperature
+    if currentTemperature >= 27 and humidity >= 40 then
+        local Tf = currentTemperature * 9/5 + 32.0
         local RH = humidity
-        
-        -- Optimize by computing powers once
-        local T2 = T * T
-        local RH2 = RH * RH
-        
-        -- Heat index formula components
-        local heatIndex = -8.784695 + 1.61139411*T + 2.338549*RH - 0.14611605*T*RH - 
-                          0.012308094*T2 - 0.016424828*RH2 + 0.002211732*T2*RH + 
-                          0.00072546*T*RH2 - 0.000003582*T2*RH2
-        
-        return mathMax(0, heatIndex - currentTemperature)
+
+        local HI = -42.379 + 2.04901523*Tf + 10.14333127*RH
+                  - 0.22475541*Tf*RH - 6.83783e-3*(Tf*Tf)
+                  - 5.481717e-2*(RH*RH) + 1.22874e-3*(Tf*Tf)*RH
+                  + 8.5282e-4*Tf*(RH*RH) - 1.99e-6*(Tf*Tf)*(RH*RH)
+        local HIc = (HI - 32.0) * 5.0/9.0
+        return mathMax(0, HIc - currentTemperature)
     end
     
     return 0
 end
 
--- Get altitude temperature modifier with improved formula - optimized
+-- Get altitude temperature modifier (standard lapse rate ~6.5°C/km)
 local function getAltitudeModifier()
     local playerPed = PlayerPedId()
     local playerCoords = GetEntityCoords(playerPed)
     local altitude = playerCoords.z
-    
-    -- Early return for low altitudes to save computation
     if altitude <= 0 then return 0 end
-    
-    -- Environmental lapse rate: temperature drops approximately 6.5°C per 1000m of elevation
-    local baseRate = -0.65 -- Base lapse rate per 100m
-    
-    -- Adjust lapse rate based on humidity (higher humidity = lower lapse rate)
-    local humidityFactor = 1.0 - (humidity / 200) -- 0.5 to 1.0 range
-    local adjustedRate = baseRate * humidityFactor
-    
-    -- Apply altitude modifier with diminishing effect at extreme heights
-    local effectiveFactor = mathMin(1.0, 1000 / mathMax(100, altitude))
-    return (altitude / 100) * adjustedRate * effectiveFactor
+    return -0.0065 * altitude
 end
 
 -- Get time of day temperature modifier with improved curve - optimized
@@ -322,6 +304,134 @@ function getClothingInsulation()
     return mathMin(insulation, 70) -- Cap at 70% insulation
 end
 
+-- ===== Microclimate & Exposure Helpers =====
+-- Sun exposure check (raycast upward)
+local function isInSun()
+    local ped = PlayerPedId()
+    local head = GetPedBoneCoords(ped, 0x796E, 0.0, 0.0, 0.0) -- head bone
+    local dest = vector3(head.x, head.y, head.z + 200.0)
+    local ray = StartShapeTestRay(head.x, head.y, head.z, dest.x, dest.y, dest.z, -1, ped, 7)
+    local _, hit = GetShapeTestResult(ray)
+    return hit == 0
+end
+
+-- Estimate cloud cover 0..1 (fallback from rain if not available)
+local function getCloudCover()
+    local rain = GetRainLevel() or 0.0 -- 0..1
+    return mathMin(1.0, 0.2 + rain * 0.8)
+end
+
+-- Solar gain (+°C) peaking at midday, reduced by cloud cover
+local function solarGainC()
+    local hour = getCurrentTime()
+    local diurnal = mathMax(0.0, 1.0 - math.abs(12 - hour)/6.0) -- peak around noon
+    local gain = 8.0 * diurnal * (1.0 - getCloudCover())
+    return isInSun() and gain or 0.0
+end
+
+-- Wind exposure: 0 (sheltered) .. 1 (fully exposed)
+local sampleDirs = {
+    vector3(1,0,0), vector3(-1,0,0), vector3(0,1,0), vector3(0,-1,0),
+    vector3(0.707,0.707,0), vector3(-0.707,0.707,0),
+    vector3(0.707,-0.707,0), vector3(-0.707,-0.707,0)
+}
+local function windExposure01()
+    local ped = PlayerPedId()
+    local pos = GetEntityCoords(ped)
+    local hits = 0
+    for _,d in ipairs(sampleDirs) do
+        local to = pos + (d * 8.0) + vector3(0,0,1.0)
+        local ray = StartShapeTestRay(pos.x, pos.y, pos.z+1.0, to.x, to.y, to.z, -1, ped, 7)
+        local _, hit = GetShapeTestResult(ray)
+        if hit ~= 0 then hits = hits + 1 end
+    end
+    local sheltered = hits / #sampleDirs
+    return 1.0 - sheltered
+end
+
+-- Compute effective wind after sheltering
+local function computeWindEffective()
+    local w = mathMax(0.0, windSpeed or 0.0)
+    local exposure = windExposure01()
+    local wEff = w * (0.4 + 0.6 * exposure) -- reduce when sheltered
+    return wEff, exposure
+end
+
+-- Wetness state and update (0..1)
+local WET = { level = 0.0, dryRate = 0.02, rainGain = 0.08, waterGain = 0.25 }
+local function updateWetness(dt)
+    local ped = PlayerPedId()
+    if IsEntityInWater(ped) or IsPedSwimming(ped) then
+        WET.level = mathMin(1.0, WET.level + WET.waterGain*dt)
+    else
+        local rain = GetRainLevel() or 0.0
+        if rain > 0.05 and not isInSun() then
+            WET.level = mathMin(1.0, WET.level + rain*WET.rainGain*dt)
+        else
+            WET.level = mathMax(0.0, WET.level - WET.dryRate*dt)
+        end
+    end
+end
+
+-- Vehicle HVAC and greenhouse effect
+local VEH = { acOn=false, setpoint=22.0, greenhouse=0.05 }
+RegisterCommand("ac", function()
+    VEH.acOn = not VEH.acOn
+    lib.notify({ title='Vehicle A/C', description = VEH.acOn and 'A/C ON' or 'A/C OFF', type = 'inform' })
+end)
+
+local function vehicleAdjustedTemp(outdoorFeelsC)
+    local ped = PlayerPedId()
+    if not IsPedInAnyVehicle(ped, false) then return outdoorFeelsC end
+    local veh = GetVehiclePedIsIn(ped, false)
+    local engineOn = GetIsVehicleEngineRunning(veh)
+    local speed = GetEntitySpeed(veh)
+    if engineOn and VEH.acOn then
+        local k = (speed > 5.0) and 0.3 or 0.12
+        return outdoorFeelsC + (VEH.setpoint - outdoorFeelsC) * k
+    end
+    if isInSun() and speed < 0.5 then
+        return outdoorFeelsC + VEH.greenhouse
+    end
+    return outdoorFeelsC
+end
+
+-- Interior thermal inertia
+local INDOOR = { last=22.0, lag=0.05, bias=-1.0 }
+local function interiorAdjustedTemp(outdoorFeelsC)
+    local ped = PlayerPedId()
+    local interior = GetInteriorFromEntity(ped)
+    if interior ~= 0 then
+        INDOOR.last = INDOOR.last + ( (outdoorFeelsC + INDOOR.bias) - INDOOR.last ) * INDOOR.lag
+        return INDOOR.last
+    else
+        INDOOR.last = outdoorFeelsC
+        return outdoorFeelsC
+    end
+end
+
+-- Simple local heat zones (spherical)
+local HeatZonesSimple = {}
+RegisterNetEvent("ges:addHeatZone", function(x,y,z,radiusC,tempDeltaC)
+    HeatZonesSimple[#HeatZonesSimple+1] = {pos=vector3(x,y,z), r=radiusC, dC=tempDeltaC}
+end)
+RegisterNetEvent("ges:clearHeatZones", function()
+    HeatZonesSimple = {}
+end)
+local function applyHeatZones(tempC)
+    local ped = PlayerPedId()
+    local p = GetEntityCoords(ped)
+    local t = tempC
+    for _,z in ipairs(HeatZonesSimple) do
+        local d = #(p - z.pos)
+        if d <= z.r then
+            local w = 1.0 - (d / z.r)
+            t = t + z.dC * w
+        end
+    end
+    return t
+end
+
 -- Calculate realistic temperature based on multiple factors - optimized
 local function calculateRealisticTemperature()
     -- When enabled, pull temperature directly from weather resource
@@ -411,30 +521,24 @@ function calculateDewPoint(temp, humidity)
 end
 
 -- Calculate "feels like" temperature - optimized
-function calculateFeelsLikeTemperature(temp, windSpeed, humidity)
-    if temp <= 10 and windSpeed > 1.3 then
-        -- Use wind chill for cold temperatures
-        local windSpeedKmh = windSpeed * 3.6
-        local windPow = windSpeedKmh^0.16
-        return 13.12 + 0.6215 * temp - 11.37 * windPow + 0.3965 * temp * windPow
-    elseif temp >= 27 then
-        -- Use heat index for hot temperatures
-        local T = temp
-        local RH = humidity
-        
-        -- Optimize by computing powers once
-        local T2 = T * T
-        local RH2 = RH * RH
-        
-        return -8.784695 + 1.61139411*T + 2.338549*RH - 0.14611605*T*RH - 
-               0.012308094*T2 - 0.016424828*RH2 + 0.002211732*T2*RH + 
-               0.00072546*T*RH2 - 0.000003582*T2*RH2
+function calculateFeelsLikeTemperature(temp, wind_mps, RH)
+    wind_mps = wind_mps or windSpeed or 0.0
+    RH = RH or humidity or 50.0
+    if temp <= 10.0 and wind_mps > 1.34 then
+        local V = wind_mps * 3.6 -- m/s -> km/h
+        local Vp = V^0.16
+        return 13.12 + 0.6215*temp - 11.37*Vp + 0.3965*temp*Vp
+    elseif temp >= 27.0 and RH >= 40.0 then
+        local Tf = temp * 9/5 + 32.0
+        local HI = -42.379 + 2.04901523*Tf + 10.14333127*RH
+                  - 0.22475541*Tf*RH - 6.83783e-3*(Tf*Tf)
+                  - 5.481717e-2*(RH*RH) + 1.22874e-3*(Tf*Tf)*RH
+                  + 8.5282e-4*Tf*(RH*RH) - 1.99e-6*(Tf*Tf)*(RH*RH)
+        return (HI - 32.0) * 5.0/9.0
     else
-        -- Use actual temperature for moderate conditions
         return temp
     end
 end
-
 -- Optimized function to check for nearby heat sources
 function isNearHeatSource()
     if not Config.useHeatzone then
@@ -517,22 +621,53 @@ function detectBiomeType(coords)
 end
 
 -- Get perceived temperature including wind chill and heat index - optimized
+-- Get perceived temperature including microclimate & vehicle/interior
 function getPerceivedTemperature()
     local actualTemperature = calculateRealisticTemperature()
-    -- Apply wind chill for cold temperatures
-    local windChillFactor = 0
-    if actualTemperature <= 10 then
-        windChillFactor = getWindChillFactor()
+
+    -- Effective wind based on shelter
+    local windEff, exposure = computeWindEffective()
+    local shadeAdj = solarGainC()
+    local wetPenalty = 4.0 * WET.level
+
+    -- Base physiological feels (uses windEff for WCT)
+    local baseFeels = calculateFeelsLikeTemperature(actualTemperature, windEff, humidity)
+
+    -- Track factors for export/event (positive deltas)
+    lastWindChill = 0.0
+    lastHeatIndex = 0.0
+    if actualTemperature <= 10.0 and windEff > 1.34 then
+        local V = windEff * 3.6
+        local Vp = V^0.16
+        local wc = 13.12 + 0.6215*actualTemperature - 11.37*Vp + 0.3965*actualTemperature*Vp
+        lastWindChill = mathMax(0.0, actualTemperature - wc)
+    elseif actualTemperature >= 27.0 and humidity >= 40.0 then
+        local Tf = actualTemperature * 9/5 + 32.0
+        local RH = humidity
+        local HI = -42.379 + 2.04901523*Tf + 10.14333127*RH
+                  - 0.22475541*Tf*RH - 6.83783e-3*(Tf*Tf)
+                  - 5.481717e-2*(RH*RH) + 1.22874e-3*(Tf*Tf)*RH
+                  + 8.5282e-4*Tf*(RH*RH) - 1.99e-6*(Tf*Tf)*(RH*RH)
+        local HIc = (HI - 32.0) * 5.0/9.0
+        lastHeatIndex = mathMax(0.0, HIc - actualTemperature)
     end
-    
-    -- Apply heat index for hot temperatures
-    local heatIndexFactor = 0
-    if actualTemperature >= 27 then
-        heatIndexFactor = getHeatIndex()
-    end
-    
-    -- Return perceived temperature
-    return actualTemperature - windChillFactor + heatIndexFactor
+
+    -- Micro adjustments: sun & wetness
+    local feels = baseFeels + shadeAdj - wetPenalty
+
+    -- Vehicle & interior & local heat zones
+    feels = vehicleAdjustedTemp(feels)
+    feels = interiorAdjustedTemp(feels)
+    feels = applyHeatZones(feels)
+
+    -- Save globals for UI/exports
+    feelsLikeTemperature = feels
+    windExposure = exposure
+    lastWindEff = windEff
+    lastInSun = isInSun()
+    lastWet = WET.level
+
+    return feels
 end
 
 -- Function to create a heat zone
@@ -627,6 +762,17 @@ Citizen.CreateThread(function()
     end
 end)
 
+-- Wetness update thread (1s tick)
+Citizen.CreateThread(function()
+    local prev = GetGameTimer()
+    while true do
+        local now = GetGameTimer()
+        local dt = (now - prev)/1000.0; prev = now
+        updateWetness(dt)
+        Wait(1000)
+    end
+end)
+
 -- Temperature update thread with optimized update frequency
 Citizen.CreateThread(function()
     while true do
@@ -654,16 +800,19 @@ Citizen.CreateThread(function()
             temperature = currentTemperature,
             perceived = perceivedTemperature,
             feelsLike = feelsLikeTemperature,
-            windChill = getWindChillFactor(),
-            heatIndex = getHeatIndex(),
+            windChill = lastWindChill,
+            heatIndex = lastHeatIndex,
             weather = getCurrentWeather(),
             season = getCurrentSeason(),
             timeOfDay = timeOfDay,
             humidity = humidity,
-            windSpeed = windSpeed,
+            windSpeed = lastWindEff or windSpeed,
             dewPoint = dewPoint,
             isIndoors = isIndoors,
-            biome = biomeType
+            biome = biomeType,
+            sun = lastInSun or false,
+            windExposure = windExposure or 1.0,
+            wetness = lastWet or 0.0
         })
         
         Wait(updateInterval)
@@ -674,8 +823,8 @@ end)
 function getTemperatureData()
     local actualTemp = calculateRealisticTemperature()
     local perceivedTemp = getPerceivedTemperature()
-    local windChill = getWindChillFactor()
-    local heatIndexVal = getHeatIndex()
+    local windChill = lastWindChill or 0.0
+    local heatIndexVal = lastHeatIndex or 0.0
     local weather = getCurrentWeather()
     local season = getCurrentSeason()
     
@@ -689,11 +838,14 @@ function getTemperatureData()
         season = season,
         timeOfDay = timeOfDay,
         humidity = humidity,
-        windSpeed = windSpeed,
+        windSpeed = lastWindEff or windSpeed,
         dewPoint = dewPoint,
         isIndoors = isIndoors,
         biome = biomeType,
-        clothingInsulation = getClothingInsulation()
+        clothingInsulation = getClothingInsulation(),
+        sun = lastInSun or false,
+        windExposure = windExposure or 1.0,
+        wetness = lastWet or 0.0
     }
 end
 
@@ -716,6 +868,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
