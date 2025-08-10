@@ -5,6 +5,34 @@ local serverTemperature = 20
 local serverWindSpeed = 1.0
 local serverHumidity = 50
 
+-- Internal temperature calculation using configuration data
+local function calculateInternalTemperature()
+    local weatherKey = string.lower(serverWeather)
+    local hour
+
+    if Config.weatherResource == 'renewed-weathersync' then
+        local timeData = GlobalState.currentTime
+        hour = timeData and timeData.hour or 12
+    else
+        hour = tonumber(os.date('%H'))
+    end
+
+    local tempData = Config.Temperature[weatherKey]
+    if tempData then
+        for _, range in ipairs(tempData) do
+            if hour >= range.startTime and hour < range.endTime then
+                return (range.tempMin + range.tempMax) / 2
+            end
+        end
+    end
+
+    return serverTemperature
+end
+
+if not Config.useWeatherResourceTemp then
+    serverTemperature = calculateInternalTemperature()
+end
+
 -- Framework initialization
 local Framework = Config.Framework or 'standalone'
 
@@ -115,8 +143,16 @@ Citizen.CreateThread(function()
         -- Get weather data from weather resource if available
         if Config.weatherResource == 'renewed-weathersync' then
             serverWeather = GlobalState.weather and GlobalState.weather.weather or "clear"
-            serverTemperature = GlobalState.temperature or 20
             serverWindSpeed = GlobalState.windSpeed or 1.0
+            if Config.useWeatherResourceTemp then
+                serverTemperature = GlobalState.temperature or serverTemperature
+            else
+                serverTemperature = calculateInternalTemperature()
+            end
+        else
+            if not Config.useWeatherResourceTemp then
+                serverTemperature = calculateInternalTemperature()
+            end
         end
         
         -- Update humidity based on weather
@@ -143,4 +179,5 @@ Citizen.CreateThread(function()
 end)
 
 print('Weather and temperature server system initialized')
+
 
