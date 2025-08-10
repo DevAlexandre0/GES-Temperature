@@ -23,5 +23,5 @@ exports {
     'getTemperatureData'
 }
 
-
-
+server_export 'getServerWeatherData'
+server_export 'setServerTemperature'
