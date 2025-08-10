@@ -1,9 +1,9 @@
 Config = Config or {}
 
--- Default configuration values
-Config.useHeatzone = true
-Config.weatherResource = 'renewed-weathersync' -- 'wethersync', 'renewed-weathersync', or 'custom'
-Config.useWeatherResourceTemp = false -- Set to true to use Renewed-Weathersync temperature directly
+-- Default configuration values␊
+Config.useHeatzone = true -- Enable creation and detection of heat zones
+Config.weatherResource = 'renewed-weathersync' -- 'wethersync', 'renewed-weathersync', or 'custom'␊
+Config.useWeatherResourceTemp = false -- Set to true to use weather resource temperature directly
 Config.Framework = 'standalone' -- Options: 'esx', 'qbox', 'standalone'
 Config.Debug = false -- Set to true to enable debug mode
 
@@ -325,4 +325,5 @@ Config.Temperature = {
 
 exports("GetWeatherConfig", function()
     return Config
+
 end)
