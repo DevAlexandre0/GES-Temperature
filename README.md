@@ -3,6 +3,7 @@
 ## Overview
 
 This resource provides a realistic weather and temperature simulation for FiveM servers. It calculates environmental temperature based on multiple dynamic factors such as season, time of day, altitude, weather conditions, biome type, nearby water bodies, and even player-specific details like clothing insulation and indoor/outdoor status. The system is designed to work with external weather resources (e.g., `renewed-weathersync`) and popular frameworks (ESX and QBCore) while also functioning in a standalone mode.
+It optionally integrates with `ox_lib` for enhanced notifications but will fall back to basic chat messages when `ox_lib` is not installed.
 
 ## Features
 
