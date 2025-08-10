@@ -85,12 +85,15 @@ This script manages server-side synchronization and administrative controls for 
   
 - **Weather Resource Integration:**  
   Use `Config.weatherResource` (e.g., set to `renewed-weathersync`) if integrating with an external weather system.
-  
-- **Debug Mode:**  
+
+- **Weather Resource Temperature:**
+  When `Config.useWeatherResourceTemp` is `true`, the resource reads temperature values directly from the configured weather system. Set to `false` to use the script's internal temperature calculations.
+
+- **Debug Mode:** 
   Enable debugging by setting `Config.Debug` to `true` if detailed logs are needed.
   
 - **Heat Zones & Cold Settings:**  
-  Configure properties such as `Config.HeatZone.radius` and thresholds in the script as required.
+  Configure properties such as `Config.HeatZone.radius` and thresholds in the script as required. Set `Config.useHeatzone` to `false` to disable creation and detection of heat zones.
 
 ## Commands
 
