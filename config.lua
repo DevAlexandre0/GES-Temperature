@@ -7,6 +7,16 @@ Config.useWeatherResourceTemp = false -- Set to true to use weather resource tem
 Config.Framework = 'standalone' -- Options: 'esx', 'qbox', 'standalone'
 Config.Debug = false -- Set to true to enable debug mode
 
+-- Stamina configuration based on thermal risk
+Config.Stamina = {
+    TempModifiers = {
+        { threshold = 0, multiplier = 1.0 },   -- No risk
+        { threshold = 1, multiplier = 0.8 },   -- Mild risk
+        { threshold = 2, multiplier = 0.5 },   -- Moderate risk
+        { threshold = 3, multiplier = 0.0 }    -- Severe risk stops regen
+    }
+}
+
 -- Temperature thresholds and effects
 Config.Cold = {
     coldThreshold = 5,           -- Temperature where cold effects begin (5°C)
@@ -181,8 +191,7 @@ Config.WeatherEffects = {
             scale = 0.9,
             smokeIntensity = 0.4,
             flameHeight = 0.9
-        },
-        overcast = {
+    overcast = {
             scale = 0.8,
             smokeIntensity = 0.5,
             flameHeight = 0.8
@@ -320,7 +329,6 @@ Config.Temperature = {
         {startTime = 21, endTime = 22, tempMin = 16, tempMax = 18},
         {startTime = 22, endTime = 23, tempMin = 15, tempMax = 17},
         {startTime = 23, endTime = 24, tempMin = 15, tempMax = 18} 
-    },
     },
     overcast = { -- values in °C, typical range 9-21
         {startTime = 0, endTime = 1, tempMin = 13, tempMax = 16},
