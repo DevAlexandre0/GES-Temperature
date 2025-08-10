@@ -1,4 +1,5 @@
 -- Local variables
+local Config = Config or {}
 local currentTemperature = 0
 local lastUpdateTime = 0
 local temperatureHistory = {}
@@ -16,6 +17,11 @@ local sunriseTime = 6 -- 6:00 AM
 local sunsetTime = 18 -- 6:00 PM
 local Zones = {}
 local Framework = Config.Framework or 'standalone'
+
+-- Indoor temperature defaults
+local indoorSettings = (Config.EnhancedWeather and Config.EnhancedWeather.Indoor) or {}
+local indoorBaseTemp = indoorSettings.baseTemperature or 22
+local indoorOutdoorInfluence = indoorSettings.outdoorInfluence or 0.3
 
 -- Extended environment vars (from server sync)
 local cloudCover = 0.0    -- 0..1
@@ -399,7 +405,7 @@ local function updateWetness(dt)
 end
 
 -- Vehicle HVAC and greenhouse effect
-local VEH = { acOn=false, setpoint=22.0, greenhouse=0.05 }
+local VEH = { acOn=false, setpoint=indoorBaseTemp, greenhouse=0.05 }
 
 RegisterCommand("ac", function()
     VEH.acOn = not VEH.acOn
@@ -427,7 +433,7 @@ local function vehicleAdjustedTemp(outdoorFeelsC)
 end
 
 -- Interior thermal inertia
-local INDOOR = { last=22.0, lag=0.05, bias=-1.0 }
+local INDOOR = { last=indoorBaseTemp, lag=0.05, bias=-1.0 }
 local function interiorAdjustedTemp(outdoorFeelsC)
     local ped = PlayerPedId()
     local interior = GetInteriorFromEntity(ped)
@@ -501,10 +507,10 @@ local function calculateRealisticTemperature()
     if isIndoors then
         -- Indoor temperatures tend to be moderated
         local outdoorTemp = rawTemperature
-        local idealTemp = 22 -- Ideal indoor temperature
+        local idealTemp = indoorBaseTemp -- Ideal indoor temperature
 
         -- Use weighted average for indoor temperature
-        rawTemperature = outdoorTemp * 0.3 + idealTemp * 0.7
+        rawTemperature = outdoorTemp * indoorOutdoorInfluence + idealTemp * (1 - indoorOutdoorInfluence)
     end
 
     -- Apply biome modifier if detected
@@ -1013,6 +1019,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
