@@ -5,6 +5,41 @@ local serverTemperature = 20
 local serverWindSpeed = 1.0
 local serverHumidity = 50
 
+local weatherOptions = {"clear", "clouds", "overcast", "rain", "thunder", "foggy"}
+
+local nativeWeatherMap = {
+    [GetHashKey and GetHashKey('CLEAR')] = 'clear',
+    [GetHashKey and GetHashKey('EXTRASUNNY')] = 'extrasunny',
+    [GetHashKey and GetHashKey('CLOUDS')] = 'clouds',
+    [GetHashKey and GetHashKey('OVERCAST')] = 'overcast',
+    [GetHashKey and GetHashKey('RAIN')] = 'rain',
+    [GetHashKey and GetHashKey('THUNDER')] = 'thunder',
+    [GetHashKey and GetHashKey('FOGGY')] = 'foggy'
+}
+
+local function generatePseudoWeather()
+    local hash = GetPrevWeatherTypeHashName and GetPrevWeatherTypeHashName()
+    local nativeWeather = hash and nativeWeatherMap[hash]
+    if nativeWeather then
+        return nativeWeather
+    end
+    return weatherOptions[math.random(#weatherOptions)]
+end
+
+local function calculateWindSpeed(weatherType)
+    local wind = GetWindSpeed and GetWindSpeed()
+    if wind and wind > 0 then
+        return wind
+    end
+    local windCfg = Config.EnhancedWeather and Config.EnhancedWeather.Wind
+    if windCfg then
+        local base = windCfg.baseSpeed[weatherType] or 1.0
+        local variation = windCfg.variation[weatherType] or 0.5
+        return base + (math.random() * variation)
+    end
+    return math.random(5, 25) / 10
+end
+
 -- Internal temperature calculation using configuration data
 local function calculateInternalTemperature()
     local weatherKey = string.lower(serverWeather)
@@ -12,9 +47,9 @@ local function calculateInternalTemperature()
 
     if Config.weatherResource == 'renewed-weathersync' then
         local timeData = GlobalState.currentTime
-        hour = timeData and timeData.hour or 12
+        hour = timeData and timeData.hour or GetClockHours()
     else
-        hour = tonumber(os.date('%H'))
+        hour = GetClockHours()
     end
 
     local tempData = Config.Temperature[weatherKey]
@@ -140,19 +175,21 @@ end, false)
 -- Thread to update server weather data
 Citizen.CreateThread(function()
     while true do
-        -- Get weather data from weather resource if available
-        if Config.weatherResource == 'renewed-weathersync' then
-            serverWeather = GlobalState.weather and GlobalState.weather.weather or "clear"
-            serverWindSpeed = GlobalState.windSpeed or 1.0
-            if Config.useWeatherResourceTemp then
-                serverTemperature = GlobalState.temperature or serverTemperature
+        local resName = Config.weatherResource
+        local resourceStarted = resName and GetResourceState(resName) == 'started'
+
+        if resourceStarted and resName == 'renewed-weathersync' then
+            serverWeather = GlobalState.weather and GlobalState.weather.weather or generatePseudoWeather()
+            serverWindSpeed = GlobalState.windSpeed or calculateWindSpeed(serverWeather)
+            if Config.useWeatherResourceTemp and GlobalState.temperature then
+                serverTemperature = GlobalState.temperature
             else
                 serverTemperature = calculateInternalTemperature()
             end
         else
-            if not Config.useWeatherResourceTemp then
-                serverTemperature = calculateInternalTemperature()
-            end
+            serverWeather = generatePseudoWeather()
+            serverWindSpeed = calculateWindSpeed(serverWeather)
+            serverTemperature = calculateInternalTemperature()
         end
         
         -- Update humidity based on weather
@@ -179,5 +216,6 @@ Citizen.CreateThread(function()
 end)
 
 print('Weather and temperature server system initialized')
+
 
 
