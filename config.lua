@@ -240,35 +240,36 @@ Config.WeatherEffects = {
     }
 }
 
--- Temperature data by weather and time
+-- Temperature data by weather and time (°C)
+-- Each entry uses 24-hour start/end times; tempMin should be ≤ tempMax
 Config.Temperature = {
-    extrasunny = {
-        {startTime = 0, endTime = 1, tempMin = 22, tempMax = 23},
-        {startTime = 1, endTime = 2, tempMin = 21, tempMax = 24},
-        {startTime = 2, endTime = 3, tempMin = 22, tempMax = 22},
-        {startTime = 3, endTime = 4, tempMin = 20, tempMax = 21},
-        {startTime = 4, endTime = 5, tempMin = 20, tempMax = 21},
-        {startTime = 5, endTime = 6, tempMin = 20, tempMax = 21},
-        {startTime = 6, endTime = 7, tempMin = 20, tempMax = 24},
-        {startTime = 7, endTime = 8, tempMin = 20, tempMax = 23},
-        {startTime = 8, endTime = 9, tempMin = 20, tempMax = 24},
-        {startTime = 9, endTime = 10, tempMin = 21, tempMax = 24},
+    extrasunny = { -- values in °C, typical daytime highs 18-32
+        {startTime = 0,  endTime = 1,  tempMin = 22, tempMax = 23},
+        {startTime = 1,  endTime = 2,  tempMin = 21, tempMax = 24},
+        {startTime = 2,  endTime = 3,  tempMin = 22, tempMax = 22},
+        {startTime = 3,  endTime = 4,  tempMin = 20, tempMax = 21},
+        {startTime = 4,  endTime = 5,  tempMin = 20, tempMax = 21},
+        {startTime = 5,  endTime = 6,  tempMin = 20, tempMax = 21},
+        {startTime = 6,  endTime = 7,  tempMin = 20, tempMax = 24},
+        {startTime = 7,  endTime = 8,  tempMin = 20, tempMax = 23},
+        {startTime = 8,  endTime = 9,  tempMin = 20, tempMax = 24},
+        {startTime = 9,  endTime = 10, tempMin = 21, tempMax = 24},
         {startTime = 10, endTime = 11, tempMin = 21, tempMax = 24},
         {startTime = 11, endTime = 12, tempMin = 22, tempMax = 24},
         {startTime = 12, endTime = 13, tempMin = 22, tempMax = 26},
         {startTime = 13, endTime = 14, tempMin = 24, tempMax = 29},
-        {startTime = 14, endTime = 15, tempMin = 24, tempMax = 21},
+        {startTime = 14, endTime = 15, tempMin = 25, tempMax = 31},
         {startTime = 15, endTime = 16, tempMin = 26, tempMax = 32},
-        {startTime = 16, endTime = 17, tempMin = 21, tempMax = 32},
-        {startTime = 17, endTime = 18, tempMin = 1, tempMax = 4},
-        {startTime = 18, endTime = 19, tempMin = 5, tempMax = 6},
-        {startTime = 19, endTime = 20, tempMin = 2, tempMax = 3},
-        {startTime = 20, endTime = 21, tempMin = 21, tempMax = 28},
-        {startTime = 21, endTime = 22, tempMin = 21, tempMax = 26},
-        {startTime = 22, endTime = 23, tempMin = 21, tempMax = 24},
-        {startTime = 23, endTime = 24, tempMin = 21, tempMax = 23} 
+        {startTime = 16, endTime = 17, tempMin = 25, tempMax = 32},
+        {startTime = 17, endTime = 18, tempMin = 24, tempMax = 30},
+        {startTime = 18, endTime = 19, tempMin = 23, tempMax = 28},
+        {startTime = 19, endTime = 20, tempMin = 22, tempMax = 27},
+        {startTime = 20, endTime = 21, tempMin = 21, tempMax = 26},
+        {startTime = 21, endTime = 22, tempMin = 20, tempMax = 24},
+        {startTime = 22, endTime = 23, tempMin = 19, tempMax = 23},
+        {startTime = 23, endTime = 24, tempMin = 18, tempMax = 22}
     },
-    clouds = {
+    clouds = { -- values in °C, typical range 14-24
         {startTime = 0, endTime = 1, tempMin = 19, tempMax = 22},
         {startTime = 1, endTime = 2, tempMin = 18, tempMax = 22},
         {startTime = 2, endTime = 3, tempMin = 17, tempMax = 21},
@@ -294,7 +295,7 @@ Config.Temperature = {
         {startTime = 22, endTime = 23, tempMin = 16, tempMax = 20},
         {startTime = 23, endTime = 24, tempMin = 17, tempMax = 21} 
     },
-    clear = {
+    clear = { -- values in °C, typical range 12-23
         {startTime = 0, endTime = 1, tempMin = 15, tempMax = 18},
         {startTime = 1, endTime = 2, tempMin = 14, tempMax = 17},
         {startTime = 2, endTime = 3, tempMin = 13, tempMax = 16},
@@ -327,3 +328,4 @@ exports("GetWeatherConfig", function()
     return Config
 
 end)
+
