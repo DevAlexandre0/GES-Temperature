@@ -791,10 +791,9 @@ function deleteHeatZone(zoneName)
     end
 end
 
--- Monitor player proximity to heat zones
-Citizen.CreateThread(function()
-    while true do
-        if Config.useHeatzone then
+if Config.useHeatzone then
+    Citizen.CreateThread(function()
+        while Config.useHeatzone do
             local playerPed = PlayerPedId()
             local playerCoords = GetEntityCoords(playerPed)
 
@@ -810,11 +809,11 @@ Citizen.CreateThread(function()
                     notify('Heat Source', 'You left the warmth of the heat source.')
                 end
             end
+            Wait(500)
         end
+    end)
+end
 
-        Wait(500)
-    end
-end)
 
 -- Optimize detection of nearby water bodies
 Citizen.CreateThread(function()
@@ -1019,6 +1018,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
