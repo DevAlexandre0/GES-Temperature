@@ -319,6 +319,15 @@ end
 
 -- Calculate realistic temperature based on multiple factors - optimized
 local function calculateRealisticTemperature()
+    -- When enabled, pull temperature directly from weather resource
+    if Config.useWeatherResourceTemp and Config.weatherResource == 'renewed-weathersync' then
+        currentTemperature = GlobalState.temperature or currentTemperature
+        currentTemperature = addTemperatureToHistory(currentTemperature)
+        dewPoint = calculateDewPoint(currentTemperature, humidity)
+        feelsLikeTemperature = calculateFeelsLikeTemperature(currentTemperature, windSpeed, humidity)
+        return currentTemperature
+    end
+
     local gameWeather = getCurrentWeather()
     local currentTime = GetGameTimer() / 1000
 
@@ -326,33 +335,33 @@ local function calculateRealisticTemperature()
     if currentTime - lastUpdateTime < 30 then
         return currentTemperature
     end
-    
+
     lastUpdateTime = currentTime
-    
+
     -- Get base temperature
     local baseTemperature = getSeasonalBaseTemperature()
-    
+
     -- Apply modifiers
     local weatherModifier = getWeatherModifier(gameWeather)
     local timeModifier = getTimeModifier()
     local altitudeModifier = getAltitudeModifier()
-    
+
     -- Calculate raw temperature
     local rawTemperature = baseTemperature + weatherModifier + timeModifier + altitudeModifier
-    
+
     -- Add micro-variations for realism - simplified for performance
     rawTemperature = rawTemperature + ((mathRandom() - 0.5) * 0.5)
-    
+
     -- Apply indoor modifier if player is inside
     if isIndoors then
         -- Indoor temperatures tend to be moderated
         local outdoorTemp = rawTemperature
         local idealTemp = 22 -- Ideal indoor temperature
-        
+
         -- Use weighted average for indoor temperature
         rawTemperature = outdoorTemp * 0.3 + idealTemp * 0.7
     end
-    
+
     -- Apply biome modifier if detected
     if biomeType == "desert" then
         -- Deserts have higher daytime temps and lower nighttime temps
@@ -423,6 +432,10 @@ end
 
 -- Optimized function to check for nearby heat sources
 function isNearHeatSource()
+    if not Config.useHeatzone then
+        return false
+    end
+
     local playerPed = PlayerPedId()
     local playerCoords = GetEntityCoords(playerPed)
     
@@ -519,6 +532,7 @@ end
 
 -- Function to create a heat zone
 function createHeatZone(coords, id)
+    if not Config.useHeatzone then return end
     -- Validate parameters
     if not coords or not id then return end
     
@@ -540,6 +554,7 @@ function createHeatZone(coords, id)
 end
 
 function deleteHeatZone(zoneName)
+    if not Config.useHeatzone then return end
     if Zones[zoneName] then
         Zones[zoneName].zone:remove()
         Zones[zoneName] = nil
@@ -683,5 +698,6 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
