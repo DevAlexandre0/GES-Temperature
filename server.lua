@@ -4,6 +4,10 @@ local serverWeather = "clear"
 local serverTemperature = 20
 local serverWindSpeed = 1.0
 local serverHumidity = 50
+local serverWindDirection = 0.0 -- degrees
+local serverWindGust = 1.5      -- m/s
+local serverCloudCover = 0.0    -- 0..1
+local serverDewPoint = 10.0     -- °C
 
 local weatherOptions = {"clear", "clouds", "overcast", "rain", "thunder", "foggy"}
 
@@ -38,6 +42,49 @@ local function calculateWindSpeed(weatherType)
         return base + (math.random() * variation)
     end
     return math.random(5, 25) / 10
+end
+
+-- Calculate dew point (Magnus formula)
+local function calculateDewPoint(temp, humidity)
+    local a, b = 17.27, 237.7
+    local alpha = ((a * temp) / (b + temp)) + math.log(humidity / 100.0)
+    return (b * alpha) / (a - alpha)
+end
+
+-- Estimate cloud cover (0..1) from weather type
+local function calculateCloudCover(weatherType)
+    local map = {
+        extrasunny = 0.05, clear = 0.15, clouds = 0.5, overcast = 0.85,
+        rain = 0.9, thunder = 0.95, foggy = 0.8, smog = 0.7,
+        snow = 0.85, blizzard = 0.95
+    }
+    local k = string.lower(weatherType or 'clear')
+    return map[k] or 0.2
+end
+
+-- Drifting wind direction (deg 0..360)
+local function calculateWindDirection(prevDir, weatherType)
+    local drift = 10
+    local base = prevDir or math.random(0,359)
+    local delta = math.random(-drift, drift)
+    return (base + delta) % 360
+end
+
+-- Gust speed (>= base) depending on weather
+local function calculateWindGust(base, weatherType)
+    local w = base or 0.0
+    local wt = string.lower(weatherType or 'clear')
+    local factor = 1.0
+    if wt == 'thunder' or wt == 'blizzard' then
+        factor = 1.8
+    elseif wt == 'rain' or wt == 'overcast' or wt == 'snow' then
+        factor = 1.4
+    else
+        factor = 1.2
+    end
+    local gust = w + (math.random() * w * (factor - 1.0))
+    if gust < w then gust = w end
+    return gust
 end
 
 -- Internal temperature calculation using configuration data
@@ -115,7 +162,11 @@ AddEventHandler('weather-temperature:requestData', function()
         temperature = serverTemperature,
         windSpeed = serverWindSpeed,
         humidity = serverHumidity,
-        weather = serverWeather
+        weather = serverWeather,
+        windDirection = serverWindDirection,
+        windGust = serverWindGust,
+        cloudCover = serverCloudCover,
+        dewPoint = serverDewPoint,
     })
 end)
 
@@ -128,9 +179,9 @@ RegisterCommand('servertemp', function(source, args)
         TriggerClientEvent('chat:addMessage', src, {
             color = {0, 200, 255},
             multiline = true,
-            args = {"Temperature", string.format("Server Temperature: %.1f°C | Weather: %s | Wind: %.1f m/s | Humidity: %d%%", 
-                serverTemperature, serverWeather, serverWindSpeed, serverHumidity)}
-        })
+            args = {"Temperature", string.format("Server Temp: %.1f°C | Weather: %s | Wind: %.1f m/s (dir %.0f°, gust %.1f) | Humidity: %d%% | Cloud: %.0f%% | Dew: %.1f°C",
+                serverTemperature, serverWeather, serverWindSpeed, serverWindDirection, serverWindGust, serverHumidity, serverCloudCover*100, serverDewPoint)}
+         })
     else
         TriggerClientEvent('chat:addMessage', src, {
             color = {255, 0, 0},
@@ -202,13 +253,24 @@ Citizen.CreateThread(function()
         else
             serverHumidity = math.random(40, 70)
         end
+
+        -- Derive additional fields
+        serverCloudCover   = GlobalState.cloudCover   or calculateCloudCover(serverWeather)
+        serverWindDirection= GlobalState.windDirection or calculateWindDirection(serverWindDirection, serverWeather)
+        serverWindGust     = GlobalState.windGust     or calculateWindGust(serverWindSpeed, serverWeather)
+        serverDewPoint     = calculateDewPoint(serverTemperature, serverHumidity)
+         
         
         -- Broadcast weather data to all clients
         TriggerClientEvent('weather-temperature:syncData', -1, {
             temperature = serverTemperature,
             windSpeed = serverWindSpeed,
             humidity = serverHumidity,
-            weather = serverWeather
+            weather = serverWeather,
+            windDirection = serverWindDirection,
+            windGust = serverWindGust,
+            cloudCover = serverCloudCover,
+            dewPoint = serverDewPoint,
         })
         
         Citizen.Wait(60000) -- Update every minute
@@ -216,6 +278,7 @@ Citizen.CreateThread(function()
 end)
 
 print('Weather and temperature server system initialized')
+
 
 
 
