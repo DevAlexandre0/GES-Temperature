@@ -159,7 +159,7 @@ local function getWindChillFactor()
     return 0 -- No wind chill effect
 end
 
-Get heat index (Rothfusz) - returns EXTRA °C above actual (0 if not applicable)
+-- Get heat index (Rothfusz) - returns EXTRA °C above actual (0 if not applicable)
 local function getHeatIndex()
     if currentTemperature >= 27 and humidity >= 40 then
         local Tf = currentTemperature * 9/5 + 32.0
@@ -756,11 +756,13 @@ Citizen.CreateThread(function()
                 playerCoords.z
             )
             
-            local waterHeight = GetWaterHeight(checkPoint.x, checkPoint.y, checkPoint.z)
-            if waterHeight and waterHeight > -1000.0 then
+            local found, waterHeight = GetWaterHeight(checkPoint.x, checkPoint.y, checkPoint.z)
+            if found and waterHeight and waterHeight > -1000.0 then
+                local waterCoords = vector3(checkPoint.x, checkPoint.y, waterHeight)
+                local distance = #(playerCoords - waterCoords)
                 table.insert(nearbyWaterBodies, {
-                    coords = vector3(checkPoint.x, checkPoint.y, waterHeight),
-                    distance = #(playerCoords - vector3(checkPoint.x, checkPoint.y, waterHeight))
+                    coords = waterCoords,
+                    distance = distance
                 })
                 break -- Exit early if water found
             end
@@ -883,6 +885,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
