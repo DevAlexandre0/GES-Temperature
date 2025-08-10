@@ -19,11 +19,8 @@ server_scripts {
     'server.lua'
 }
 
-dependencies {
-    'ox_lib'
-}
-
 exports {
     'getTemperatureData'
 }
+
 
