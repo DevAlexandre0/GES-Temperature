@@ -1,5 +1,4 @@
 -- Initialize variables
-local playerTemperatures = {}
 local serverWeather = "clear"
 local serverTemperature = 20
 local serverWindSpeed = 1.0
@@ -278,6 +277,7 @@ Citizen.CreateThread(function()
 end)
 
 print('Weather and temperature server system initialized')
+
 
 
 
