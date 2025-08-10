@@ -315,6 +315,13 @@ function getClothingInsulation()
     if legsDrawable >= 4 and legsDrawable <= 10 then
         insulation = insulation + 15
     end
+
+    -- Reduce effective insulation when wet and when fully exposed to wind
+    local wet = (WET and WET.level) or 0.0
+    local exposure = (windExposure ~= nil) and windExposure or 1.0
+    local wetPenalty = 20.0 * wet             -- up to -20 when fully soaked
+    local windPenalty = 10.0 * exposure       -- up to -10 when fully exposed
+    insulation = mathMax(0, insulation - mathFloor(wetPenalty + windPenalty))    
     
     return mathMin(insulation, 70) -- Cap at 70% insulation
 end
@@ -332,6 +339,10 @@ end
 
 -- Estimate cloud cover 0..1 (fallback from rain if not available)
 local function getCloudCover()
+    -- Prefer server-synced cloudCover when provided; fallback to rain-derived estimate
+    if cloudCover ~= nil and cloudCover > 0 then
+        return mathMin(1.0, mathMax(0.0, cloudCover))
+    end
     local rain = GetRainLevel() or 0.0 -- 0..1
     return mathMin(1.0, 0.2 + rain * 0.8)
 end
@@ -685,6 +696,67 @@ function getPerceivedTemperature()
     return feels
 end
 
+-- Compute thermal risk tier from feels-like temperature and modifiers
+local function computeThermalRisk(feelsC, RH, wind_mps, indoors, cloPercent, wet)
+    local severity = 0
+    local label = "none"
+    -- base thresholds
+    if feelsC <= -20.0 then severity=3; label="severe_cold"
+    elseif feelsC <= -10.0 then severity=2; label="cold"
+    elseif feelsC <= 0.0 then severity=1; label="mild_cold"
+    elseif feelsC >= 54.0 then severity=3; label="severe_heat"
+    elseif feelsC >= 41.0 then severity=2; label="heat"
+    elseif feelsC >= 32.0 then severity=1; label="mild_heat"
+    end
+    -- modifiers
+    local clo = (cloPercent or 0)/70.0
+    if indoors then severity = mathMax(0, severity - 1) end
+    if feelsC < 10.0 and clo >= 0.6 then severity = mathMax(0, severity - 1) end
+    if feelsC < 15.0 and (wet or 0) > 0.4 then severity = mathMin(3, severity + 1) end
+    if severity == 0 then label = "none" end
+    return label, severity
+end
+
+local function resourceStarted(name)
+    return (GetResourceState and GetResourceState(name) == 'started') or false
+end
+
+-- Best-effort status drains for popular frameworks (optional)
+local function applyFrameworkStatusDrains(severity)
+    if severity <= 0 then return end
+    local thirstDrain = severity * 100
+    local hungerDrain = mathFloor(severity * 60)
+    if resourceStarted('esx_status') then
+        TriggerEvent('esx_status:remove', 'thirst', thirstDrain)
+        TriggerEvent('esx_status:remove', 'hunger', hungerDrain)
+    end
+    if resourceStarted('qb-core') and TriggerEvent then
+        TriggerEvent('ges:thermal:status', { thirst = thirstDrain, hunger = hungerDrain, severity = severity })
+    end
+end
+
+-- Thermal risk & effects loop (every 5s)
+Citizen.CreateThread(function()
+    local lastLabel = "none"
+    while true do
+        local feels = feelsLikeTemperature ~= 0 and feelsLikeTemperature or getPerceivedTemperature()
+        local clo = getClothingInsulation()
+        local label, sev = computeThermalRisk(feels, humidity or 50, lastWindEff or windSpeed or 0.0, isIndoors, clo, (WET and WET.level) or 0.0)
+        currentRisk = label
+        riskSeverity = sev
+        applyFrameworkStatusDrains(sev)
+        if sev >= 2 then
+            RestorePlayerStamina(PlayerId(), 0.0)
+            ShakeGameplayCam('SMALL_EXPLOSION_SHAKE', 0.1 * sev)
+        end
+        if label ~= lastLabel then
+            notify('Thermal Risk', string.format('%s (sev %d)', label, sev))
+            lastLabel = label
+        end
+        Citizen.Wait(5000)
+    end
+end)
+
 -- Function to create a heat zone
 function createHeatZone(coords, id)
     if not Config.useHeatzone then return end
@@ -824,15 +896,56 @@ Citizen.CreateThread(function()
             timeOfDay = timeOfDay,
             humidity = humidity,
             windSpeed = lastWindEff or windSpeed,
+            windDirection = windDirection,
+            windGust = windGust,
+            cloudCover = cloudCover,
             dewPoint = dewPoint,
             isIndoors = isIndoors,
             biome = biomeType,
             sun = lastInSun or false,
             windExposure = windExposure or 1.0,
-            wetness = lastWet or 0.0
+            wetness = lastWet or 0.0,
+            risk = currentRisk,
+            riskSeverity = riskSeverity,
         })
         
         Wait(updateInterval)
+    end
+end)
+
+-- Toggle temperature debug overlay
+RegisterCommand('tempdebug', function()
+    TEMPDEBUG = not TEMPDEBUG
+    notify('Temp Debug', TEMPDEBUG and 'ON' or 'OFF')
+end, false)
+
+local function drawTxt(x, y, scale, text)
+    SetTextFont(0)
+    SetTextProportional(0)
+    SetTextScale(scale, scale)
+    SetTextColour(255, 255, 255, 215)
+    SetTextDropShadow()
+    SetTextOutline()
+    SetTextEntry("STRING")
+    AddTextComponentString(text)
+    DrawText(x, y)
+end
+
+Citizen.CreateThread(function()
+    while true do
+        if TEMPDEBUG then
+            local x, y = 0.015, 0.02
+            local data = getTemperatureData()
+            local linesOut = {
+                string.format("Temp: %.1f°C | Feels: %.1f°C | Dew: %.1f°C", data.temperature or 0.0, data.feelsLike or 0.0, data.dewPoint or 0.0),
+                string.format("Wind: %.1f m/s | Hum: %d%% | Risk: %s(%d)", data.windSpeed or 0.0, data.humidity or 0, currentRisk or 'none', riskSeverity or 0),
+                string.format("Indoors: %s | Biome: %s | Wet: %.2f | Clo: %d%%", tostring(isIndoors), tostring(biomeType), (WET and WET.level) or 0.0, getClothingInsulation())
+            }
+            for i, t in ipairs(linesOut) do
+                drawTxt(x, y + (i-1)*0.025, 0.35, t)
+            end
+        end
+        Citizen.Wait(0)
     end
 end)
 
@@ -856,15 +969,22 @@ function getTemperatureData()
         timeOfDay = timeOfDay,
         humidity = humidity,
         windSpeed = lastWindEff or windSpeed,
+        windDirection = windDirection,
+        windGust = windGust,
+        cloudCover = cloudCover,
         dewPoint = dewPoint,
         isIndoors = isIndoors,
         biome = biomeType,
         clothingInsulation = getClothingInsulation(),
         sun = lastInSun or false,
         windExposure = windExposure or 1.0,
-        wetness = lastWet or 0.0
+        wetness = lastWet or 0.0,
+        risk = currentRisk,
+        riskSeverity = riskSeverity,
     }
 end
+
+
 
 -- Export the function so other scripts can call it
 exports("getTemperatureData", getTemperatureData)
@@ -879,12 +999,17 @@ end, false)
 -- Event handler for temperature updates from server
 RegisterNetEvent('weather-temperature:syncData')
 AddEventHandler('weather-temperature:syncData', function(data)
-    if data.temperature then currentTemperature = data.temperature end
-    if data.windSpeed then windSpeed = data.windSpeed end
-    if data.humidity then humidity = data.humidity end
+    if data.temperature ~= nil then currentTemperature = data.temperature end
+    if data.windSpeed ~= nil then windSpeed = data.windSpeed end
+    if data.humidity ~= nil then humidity = data.humidity end
+    if data.cloudCover ~= nil then cloudCover = data.cloudCover end
+    if data.windDirection ~= nil then windDirection = data.windDirection end
+    if data.windGust ~= nil then windGust = data.windGust end
+    if data.dewPoint ~= nil then dewPoint = data.dewPoint end
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
