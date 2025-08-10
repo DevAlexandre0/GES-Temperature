@@ -114,6 +114,26 @@ if not Config.useWeatherResourceTemp then
     serverTemperature = calculateInternalTemperature()
 end
 
+-- Provide server weather data for other resources
+function getServerWeatherData()
+    return serverTemperature, serverWeather, serverWindSpeed, serverHumidity
+end
+
+-- Allow other resources to programmatically set the temperature
+function setServerTemperature(temp)
+    if type(temp) == 'number' then
+        serverTemperature = temp
+        TriggerClientEvent('weather-temperature:syncData', -1, {
+            temperature = serverTemperature
+        })
+        return true
+    end
+    return false
+end
+
+exports('getServerWeatherData', getServerWeatherData)
+exports('setServerTemperature', setServerTemperature)
+
 -- Framework initialization
 local Framework = Config.Framework or 'standalone'
 
@@ -277,6 +297,7 @@ Citizen.CreateThread(function()
 end)
 
 print('Weather and temperature server system initialized')
+
 
 
 
