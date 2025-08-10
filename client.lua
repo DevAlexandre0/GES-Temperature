@@ -427,13 +427,9 @@ function isNearHeatSource()
     local playerCoords = GetEntityCoords(playerPed)
     
     -- First check active zones which is more efficient
-    for zoneName, zoneData in pairs(Zones) do
-        if DoesEntityExist(zoneData.entity) then
-            local objCoords = GetEntityCoords(zoneData.entity)
-            local dist = #(playerCoords - objCoords)
-            if dist <= Config.Cold.heatSourceRange then
-                return true
-            end
+    for _, zoneData in pairs(Zones) do
+        if zoneData.zone and zoneData.zone:isPointInside(playerCoords) then
+            return true
         end
     end
     
@@ -687,4 +683,5 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
