@@ -4,7 +4,6 @@ local lastUpdateTime = 0
 local temperatureHistory = {}
 local windSpeed = 0
 local humidity = 50 -- Default humidity (%)
-local barometricPressure = 1013 -- Default pressure (hPa)
 local dewPoint = 0
 local feelsLikeTemperature = 0
 local lastWeatherCheck = 0
@@ -1014,6 +1013,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
