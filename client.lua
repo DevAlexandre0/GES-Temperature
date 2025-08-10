@@ -18,6 +18,21 @@ local sunsetTime = 18 -- 6:00 PM
 local Zones = {}
 local Framework = Config.Framework or 'standalone'
 
+-- Extended environment vars (from server sync)
+local cloudCover = 0.0    -- 0..1
+local windDirection = 0.0 -- degrees
+local windGust = 0.0      -- m/s
+
+-- Thermal risk state
+local currentRisk = "none"
+local riskSeverity = 0
+
+-- Simple wetness model (0..1)
+local WET = { level = 0.0, dryRate = 0.02, rainGain = 0.08, waterGain = 0.25 }
+
+-- Debug toggle
+local TEMPDEBUG = false
+
 -- Basic notification helper using the chat resource
 local function notify(title, message)
     TriggerEvent('chat:addMessage', { args = { title or 'Info', message or '' } })
@@ -868,6 +883,7 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
+
 
 
 
