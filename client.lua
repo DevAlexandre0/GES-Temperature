@@ -893,7 +893,7 @@ Citizen.CreateThread(function()
         local perceivedTemperature = getPerceivedTemperature()
         
         -- Trigger temperature update event for other resources to use
-        TriggerEvent('weather-temperature:update', {
+        TriggerEvent('ges:temperature::update', {
             temperature = currentTemperature,
             perceived = perceivedTemperature,
             feelsLike = feelsLikeTemperature,
@@ -1043,6 +1043,29 @@ Citizen.CreateThread(function()
     end
 end)
 
+CreateThread(function()
+    while true do
+        Wait(2000)
+        if type(getTemperatureData) ~= 'function' then goto continue end
+        local t = getTemperatureData()
+        if type(t) == 'table' then
+            local feels = t.feelsLike or t.temperature or 0.0
+            local band = 'normal'
+            if feels <= 0 then band = 'cold' end
+            if feels >= 35 then band = 'hot' end
+            -- ส่งเป็น event ฝั่ง client (ภายในเครื่องผู้เล่น) ให้ SurvCore รับไป relay
+            TriggerEvent('ges:temperature:update', {
+                celsius = feels,
+                band = band,
+                weather = t.weather,
+                windSpeed = t.windSpeed,
+                humidity = t.humidity
+            })
+        end
+        ::continue::
+    end
+end)
+
 -- Register command to check temperature
 RegisterCommand('checktemp', function()
     local data = getTemperatureData()
@@ -1051,8 +1074,8 @@ RegisterCommand('checktemp', function()
 end, false)
 
 -- Event handler for temperature updates from server
-RegisterNetEvent('weather-temperature:syncData')
-AddEventHandler('weather-temperature:syncData', function(data)
+RegisterNetEvent('ges:temperature::syncData')
+AddEventHandler('ges:temperature::syncData', function(data)
     if data.temperature ~= nil then currentTemperature = data.temperature end
     if data.windSpeed ~= nil then windSpeed = data.windSpeed end
     if data.humidity ~= nil then humidity = data.humidity end
@@ -1063,15 +1086,3 @@ AddEventHandler('weather-temperature:syncData', function(data)
 end)
 
 print('Weather and temperature system initialized')
-
-
-
-
-
-
-
-
-
-
-
-
