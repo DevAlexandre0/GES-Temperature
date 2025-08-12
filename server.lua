@@ -41,16 +41,16 @@ exports('getServerWeatherData', getServerWeatherData)
 function setServerTemperature(temp)
     if type(temp)=='number' then
         serverTemperature = temp
-        TriggerClientEvent('weather-temperature:syncData', -1, { temperature = serverTemperature })
+        TriggerClientEvent('ges:temperature::syncData', -1, { temperature = serverTemperature })
         return true
     end
     return false
 end
 exports('setServerTemperature', setServerTemperature)
 
-RegisterNetEvent('weather-temperature:requestSync', function()
+RegisterNetEvent('ges:temperature::requestSync', function()
     local src = source
-    TriggerClientEvent('weather-temperature:syncData', src, {
+    TriggerClientEvent('ges:temperature::syncData', src, {
         temperature = serverTemperature,
         windSpeed = serverWindSpeed,
         humidity = serverHumidity,
@@ -65,7 +65,7 @@ end)
 CreateThread(function()
     while true do
         recalc()
-        TriggerClientEvent('weather-temperature:syncData', -1, {
+        TriggerClientEvent('ges:temperature::syncData', -1, {
             temperature = serverTemperature,
             windSpeed = serverWindSpeed,
             humidity = serverHumidity,
@@ -79,4 +79,4 @@ CreateThread(function()
     end
 end)
 
-print('[weather-temperature] server initialized')
+print('[ges:temperature:] server initialized')
