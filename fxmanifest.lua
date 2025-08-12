@@ -8,25 +8,23 @@ version '1.1.0'
 lua54 'yes'
 
 -- debug: setr ges_debug 1
-shared_scripts {
-  'config/config.temperature.lua',
-  'config/config.wetness.lua',
-  'config/config.stamina.lua',
-}
+
+shared_script 'config.lua'
 
 client_scripts {
-  'client/main.lua',                -- smart bridge (SurvCore-aware)
-  'client/module.temperature.lua',
-  'client/module.wetness.lua',
-  'client/module.stamina.lua',
+    'client.lua',              -- core calculations
+    'client/main.lua',         -- event bridge / framework helpers
+    'client/modules/temperature.lua',
+    'client/modules/wetness.lua',
+    'client/modules/stamina.lua'
 }
 
 server_scripts {
-  'server/bridge.lua'               -- optional logging/future hooks
+    'server/bridge.lua'
 }
 
 exports {
-  'getTemperatureData',
-  'getWetnessData',
-  'getStaminaData'
+    'getTemperatureData',
+    'getWetnessData',
+    'getStaminaData'
 }
