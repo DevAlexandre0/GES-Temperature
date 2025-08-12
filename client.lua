@@ -1,3 +1,4 @@
+-- modular-split-ready; threads below are guarded when modules are loaded
 -- Local variables
 local Config = Config or {}
 local currentTemperature = 0
@@ -746,7 +747,8 @@ local function applyFrameworkStatusDrains(severity)
 end
 
 -- Thermal risk & effects loop (every 5s)
-Citizen.CreateThread(function()
+Citizen.if not GES_T_MODULAR then
+CreateThread(function()
     local lastLabel = "none"
     while true do
         local feels = feelsLikeTemperature ~= 0 and feelsLikeTemperature or getPerceivedTemperature()
@@ -766,6 +768,8 @@ Citizen.CreateThread(function()
     end
 end)
 
+
+end
 -- Function to create a heat zone
 function createHeatZone(coords, id)
     if not Config.useHeatzone then return end
@@ -791,7 +795,8 @@ function deleteHeatZone(zoneName)
 end
 
 if Config.useHeatzone then
-    Citizen.CreateThread(function()
+    Citizen.if not GES_T_MODULAR then
+CreateThread(function()
         while Config.useHeatzone do
             local playerPed = PlayerPedId()
             local playerCoords = GetEntityCoords(playerPed)
@@ -859,8 +864,17 @@ Citizen.CreateThread(function()
     end
 end)
 
+
+end
+ 30 seconds
+    end
+end)
+
+
+end
 -- Wetness update thread (1s tick)
-Citizen.CreateThread(function()
+Citizen.if not GES_T_MODULAR then
+CreateThread(function()
     local prev = GetGameTimer()
     while true do
         local now = GetGameTimer()
@@ -870,6 +884,8 @@ Citizen.CreateThread(function()
     end
 end)
 
+
+end
 -- Temperature update thread with optimized update frequency
 Citizen.CreateThread(function()
     while true do
@@ -998,7 +1014,8 @@ end
 exports("getTemperatureData", getTemperatureData)
 
 -- Stamina management loop
-Citizen.CreateThread(function()
+Citizen.if not GES_T_MODULAR then
+CreateThread(function()
     local stamina = 100.0
     local exhaustedClip = 'move_m@injured'
     local clipLoaded = false
@@ -1043,6 +1060,9 @@ Citizen.CreateThread(function()
     end
 end)
 
+
+end
+if not GES_T_MODULAR then
 CreateThread(function()
     while true do
         Wait(2000)
@@ -1066,6 +1086,8 @@ CreateThread(function()
     end
 end)
 
+
+end
 -- Register command to check temperature
 RegisterCommand('checktemp', function()
     local data = getTemperatureData()
