@@ -747,7 +747,7 @@ local function applyFrameworkStatusDrains(severity)
 end
 
 -- Thermal risk & effects loop (every 5s)
-Citizen.if not GES_T_MODULAR then
+if not GES_T_MODULAR then
 CreateThread(function()
     local lastLabel = "none"
     while true do
@@ -767,8 +767,6 @@ CreateThread(function()
         Citizen.Wait(5000)
     end
 end)
-
-
 end
 -- Function to create a heat zone
 function createHeatZone(coords, id)
@@ -794,8 +792,7 @@ function deleteHeatZone(zoneName)
     end
 end
 
-if Config.useHeatzone then
-    Citizen.if not GES_T_MODULAR then
+if Config.useHeatzone and not GES_T_MODULAR then
 CreateThread(function()
         while Config.useHeatzone do
             local playerPed = PlayerPedId()
@@ -815,7 +812,7 @@ CreateThread(function()
             end
             Wait(500)
         end
-    end)
+end)
 end
 
 
@@ -864,16 +861,8 @@ Citizen.CreateThread(function()
     end
 end)
 
-
-end
- 30 seconds
-    end
-end)
-
-
-end
 -- Wetness update thread (1s tick)
-Citizen.if not GES_T_MODULAR then
+if not GES_T_MODULAR then
 CreateThread(function()
     local prev = GetGameTimer()
     while true do
@@ -883,8 +872,6 @@ CreateThread(function()
         Wait(1000)
     end
 end)
-
-
 end
 -- Temperature update thread with optimized update frequency
 Citizen.CreateThread(function()
@@ -1014,7 +1001,7 @@ end
 exports("getTemperatureData", getTemperatureData)
 
 -- Stamina management loop
-Citizen.if not GES_T_MODULAR then
+if not GES_T_MODULAR then
 CreateThread(function()
     local stamina = 100.0
     local exhaustedClip = 'move_m@injured'
@@ -1059,8 +1046,6 @@ CreateThread(function()
         Citizen.Wait(500)
     end
 end)
-
-
 end
 if not GES_T_MODULAR then
 CreateThread(function()

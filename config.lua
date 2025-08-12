@@ -191,7 +191,8 @@ Config.WeatherEffects = {
             scale = 0.9,
             smokeIntensity = 0.4,
             flameHeight = 0.9
-    overcast = {
+        },
+        overcast = {
             scale = 0.8,
             smokeIntensity = 0.5,
             flameHeight = 0.8
