@@ -1,9 +1,9 @@
 fx_version 'cerulean'
 game 'gta5'
 
-name 'weather-temperature'
+name 'GES-Temperature'
 description 'Standalone weather and temperature system'
-author 'Your Name'
+author 'GESUS'
 version '1.0.0'
 lua54 'yes'
 shared_scripts {
@@ -25,3 +25,4 @@ exports {
 
 server_export 'getServerWeatherData'
 server_export 'setServerTemperature'
+
